@@ -1,24 +1,34 @@
 import streamlit as st
 import pandas as pd
 import pickle
+import os
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
+# Define the path to the directory containing the model and scaler files
+model_directory = r'C:\Users\akash\OneDrive\Documents\streamlit\Laptop_prediction'
+
+# Function to check and load files
+def load_pickle_file(file_name):
+    file_path = os.path.join(model_directory, file_name)
+    if os.path.exists(file_path):
+        with open(file_path, 'rb') as file:
+            return pickle.load(file)
+    else:
+        st.error(f"File not found: {file_path}")
+        return None
+
 # Load the trained model, scalers, and feature names
-with open('laptop_prediction/laptop.pkl', 'rb') as file:
-    model = pickle.load(file)
+model = load_pickle_file('laptop.pkl')
+scaler = load_pickle_file('scaler.pkl')
+mmscaler = load_pickle_file('mmscaler.pkl')
+feature_names = load_pickle_file('feature_names.pkl')
 
-with open('laptop_prediction/scaler.pkl', 'rb') as file:
-    scaler = pickle.load(file)
-
-with open('laptop_prediction/mmscaler.pkl', 'rb') as file:
-    mmscaler = pickle.load(file)
-
-with open('laptop_prediction/feature_names.pkl', 'rb') as file:
-    feature_names = pickle.load(file)
+if model is None or scaler is None or mmscaler is None or feature_names is None:
+    st.stop()
 
 # Function to get user inputs
 def user_input_features():
-    form = st.form(key='diabetes_form')
+    form = st.form(key='laptop_form')
     Company = form.selectbox('Company', [
         'Apple', 'HP', 'Acer', 'Asus', 'Dell', 'Lenovo', 'Chuwi', 'MSI', 'Microsoft', 'Toshiba',
         'Huawei', 'Xiaomi', 'Vero', 'Razer', 'Mediacom', 'Samsung', 'Google', 'Fujitsu', 'LG'
@@ -53,73 +63,41 @@ def user_input_features():
         'AMD gpu': 1 if GPU == 'AMD' else 0,
         'Nvidia': 1 if GPU == 'Nvidia' else 0,
         'storage': storage,
-        'SSD': 1,
-        'HDD': 0,
-        'Flash Storage': 0,
-        'Hybrid': 0,
+        'Inches': Inches,
         'Ultrabook': 1 if TypeName == 'Ultrabook' else 0,
         'Notebook': 1 if TypeName == 'Notebook' else 0,
         'Netbook': 1 if TypeName == 'Netbook' else 0,
         'Gaming': 1 if TypeName == 'Gaming' else 0,
         'Convertible': 1 if TypeName == 'Convertible' else 0,
         'Workstation': 1 if TypeName == 'Workstation' else 0,
-        'Apple': 1 if Company == 'Apple' else 0,
-        'HP': 1 if Company == 'HP' else 0,
-        'Acer': 1 if Company == 'Acer' else 0,
-        'Asus': 1 if Company == 'Asus' else 0,
-        'Dell': 1 if Company == 'Dell' else 0,
-        'Lenovo': 1 if Company == 'Lenovo' else 0,
-        'Chuwi': 1 if Company == 'Chuwi' else 0,
-        'MSI': 1 if Company == 'MSI' else 0,
-        'Microsoft': 1 if Company == 'Microsoft' else 0,
-        'Toshiba': 1 if Company == 'Toshiba' else 0,
-        'Huawei': 1 if Company == 'Huawei' else 0,
-        'Xiaomi': 1 if Company == 'Xiaomi' else 0,
-        'Vero': 1 if Company == 'Vero' else 0,
-        'Razer': 1 if Company == 'Razer' else 0,
-        'Mediacom': 1 if Company == 'Mediacom' else 0,
-        'Samsung': 1 if Company == 'Samsung' else 0,
-        'Google': 1 if Company == 'Google' else 0,
-        'Fujitsu': 1 if Company == 'Fujitsu' else 0,
-        'LG': 1 if Company == 'LG' else 0
+        **{company: 1 if company == Company else 0 for company in feature_names if company not in [
+            'Ram', 'Weight', 'Touchscreen', 'IPS Panel', 'x resolution', 'y resolution', 'intel i3', 'intel i5',
+            'intel i7', 'AMD', 'other cpu', 'intel gpu', 'AMD gpu', 'Nvidia', 'storage', 'Inches',
+            'Ultrabook', 'Notebook', 'Netbook', 'Gaming', 'Convertible', 'Workstation'
+        ]}
     }
-    return pd.DataFrame(user_data, index=[0]),submit_button
 
-# Function to apply scaling
-def apply_scaling(df):
-    df[['x resolution', 'y resolution']] = scaler.fit_transform(df[['x resolution', 'y resolution']])
-    df[['Ram', 'Weight', 'storage', 'Inches']] = mmscaler.fit_transform(df[['Ram', 'Weight', 'storage', 'Inches']])
-    return df
+    if submit_button:
+        return pd.DataFrame(user_data, index=[0])
+    return pd.DataFrame()
 
-# Main function to run the app
-def main():
-    st.title('Laptop Price Prediction')
+# Get user input
+input_df = user_input_features()
 
-    st.write("Please provide the following details to predict the laptop price:")
+st.write('#### User Input Features')
+st.write(input_df)
 
-    # Get user input
-    input_df,submit= user_input_features()
+# Ensure the input DataFrame has the same columns in the same order as feature_names
+if not input_df.empty:
+    input_df = input_df.reindex(columns=feature_names, fill_value=0)
 
-    # Ensure input_df has the same columns as feature_names
-    for col in feature_names:
-        if col not in input_df.columns:
-            input_df[col] = 0
-    input_df = input_df[feature_names]
+# Preprocess input data
+if not input_df.empty:
+    input_df[['x resolution', 'y resolution']] = scaler.fit_transform(input_df[['x resolution', 'y resolution']])
+    input_df[['Ram', 'Weight', 'storage', 'Inches']] = mmscaler.fit_transform(input_df[['Ram', 'Weight', 'storage', 'Inches']])
 
-    # Show user input
-    st.write("##### User Input Features")
-    st.write(input_df)
-
-    # Apply scaling to user input
-    input_df = apply_scaling(input_df)
-
-    # Predict using the model
+# Display prediction
+if not input_df.empty:
     prediction = model.predict(input_df)
-    if submit:
-
-        # Show prediction
-        st.write('#### Laptop Price')
-        st.write(f"Predicted Laptop Price : ${prediction[0]:.2f}")
-
-if __name__ == '__main__':
-    main()
+    st.subheader('Predicted Price')
+    st.write(f"Predicted Laptop Price :  ${round(prediction[0])}")
