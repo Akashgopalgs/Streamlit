@@ -568,16 +568,16 @@ mean_absolute_error(y_test,y_pred)
 
 
 
-with open('laptop_prediction/laptop.pkl', 'rb') as file:
+with open('laptop_prediction/laptop.pkl', 'wb') as file:
     model = pickle.load(file)
 
-with open('laptop_prediction/scaler.pkl', 'rb') as file:
+with open('laptop_prediction/scaler.pkl', 'wb') as file:
     scaler = pickle.load(file)
 
-with open('laptop_prediction/mmscaler.pkl', 'rb') as file:
+with open('laptop_prediction/mmscaler.pkl', 'wb') as file:
     mmscaler = pickle.load(file)
 
-with open('laptop_prediction/feature_names.pkl', 'rb') as file:
+with open('laptop_prediction/feature_names.pkl', 'wb') as file:
     feature_names = pickle.load(file)
 
 
