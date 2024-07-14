@@ -1,103 +1,124 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import pickle
-import os
+import re
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
-# Define the path to the directory containing the model and scaler files
-model_directory = r'C:\Users\akash\OneDrive\Documents\streamlit\Laptop_prediction'
-
-# Function to check and load files
-def load_pickle_file(file_name):
-    file_path = os.path.join(model_directory, file_name)
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as file:
-            return pickle.load(file)
-    else:
-        st.error(f"File not found: {file_path}")
-        return None
-
-# Load the trained model, scalers, and feature names
-model = load_pickle_file('laptop.pkl')
-scaler = load_pickle_file('scaler.pkl')
-mmscaler = load_pickle_file('mmscaler.pkl')
-feature_names = load_pickle_file('feature_names.pkl')
-
-if model is None or scaler is None or mmscaler is None or feature_names is None:
+# Load the trained model
+try:
+    with open('laptop_prediction/laptop_price_model.pkl', 'rb') as file:
+        model = pickle.load(file)
+except FileNotFoundError:
+    st.error("Model file not found. Please ensure 'laptop_price_model.pkl' is in the correct directory.")
     st.stop()
 
-# Function to get user inputs
-def user_input_features():
-    form = st.form(key='laptop_form')
-    Company = form.selectbox('Company', [
-        'Apple', 'HP', 'Acer', 'Asus', 'Dell', 'Lenovo', 'Chuwi', 'MSI', 'Microsoft', 'Toshiba',
-        'Huawei', 'Xiaomi', 'Vero', 'Razer', 'Mediacom', 'Samsung', 'Google', 'Fujitsu', 'LG'
-    ])
-    TypeName = form.selectbox('Type', ['Ultrabook', 'Notebook', 'Netbook', 'Gaming', 'Convertible', 'Workstation'])
-    Ram = form.slider('Ram (GB)', 2, 64, step=2)
-    Weight = form.slider('Weight (kg)', 1.0, 5.0, step=0.1)
-    ScreenResolution = form.selectbox('Screen Resolution', [
-        '1920x1080', '1366x768', '3200x1800', '2560x1440', '2304x1440', '3840x2160'
-    ])
-    Touchscreen = form.selectbox('Touchscreen', ['Yes', 'No'])
-    IPS_Panel = form.selectbox('IPS Panel', ['Yes', 'No'])
-    CPU = form.selectbox('CPU', ['Intel Core i3', 'Intel Core i5', 'Intel Core i7', 'AMD', 'Other'])
-    GPU = form.selectbox('GPU', ['Intel', 'AMD', 'Nvidia'])
-    storage = form.slider('Storage (GB)', 32, 2048, step=32)
-    Inches = form.slider('Inches', 10, 18, step=1)
-    submit_button = form.form_submit_button('Predict')
+# Load feature names
+with open('laptop_prediction/feature_names.pkl', 'rb') as file:
+    feature_names = pickle.load(file)
 
-    user_data = {
-        'Ram': Ram,
-        'Weight': Weight,
-        'Touchscreen': 1 if Touchscreen == 'Yes' else 0,
-        'IPS Panel': 1 if IPS_Panel == 'Yes' else 0,
-        'x resolution': int(ScreenResolution.split('x')[0]),
-        'y resolution': int(ScreenResolution.split('x')[1]),
-        'intel i3': 1 if CPU == 'Intel Core i3' else 0,
-        'intel i5': 1 if CPU == 'Intel Core i5' else 0,
-        'intel i7': 1 if CPU == 'Intel Core i7' else 0,
-        'AMD': 1 if CPU == 'AMD' else 0,
-        'other cpu': 1 if CPU == 'Other' else 0,
-        'intel gpu': 1 if GPU == 'Intel' else 0,
-        'AMD gpu': 1 if GPU == 'AMD' else 0,
-        'Nvidia': 1 if GPU == 'Nvidia' else 0,
-        'storage': storage,
-        'Inches': Inches,
-        'Ultrabook': 1 if TypeName == 'Ultrabook' else 0,
-        'Notebook': 1 if TypeName == 'Notebook' else 0,
-        'Netbook': 1 if TypeName == 'Netbook' else 0,
-        'Gaming': 1 if TypeName == 'Gaming' else 0,
-        'Convertible': 1 if TypeName == 'Convertible' else 0,
-        'Workstation': 1 if TypeName == 'Workstation' else 0,
-        **{company: 1 if company == Company else 0 for company in feature_names if company not in [
-            'Ram', 'Weight', 'Touchscreen', 'IPS Panel', 'x resolution', 'y resolution', 'intel i3', 'intel i5',
-            'intel i7', 'AMD', 'other cpu', 'intel gpu', 'AMD gpu', 'Nvidia', 'storage', 'Inches',
-            'Ultrabook', 'Notebook', 'Netbook', 'Gaming', 'Convertible', 'Workstation'
-        ]}
+# Define scalers based on your trained model
+scaler_x = StandardScaler()
+scaler_y = MinMaxScaler()
+
+# Function to scale input data
+def scale_input_data(data):
+    data[['x resolution']] = scaler_x.fit_transform(data[['x resolution']])
+    data[['y resolution']] = scaler_x.fit_transform(data[['y resolution']])
+    data[['Inches']] = scaler_y.fit_transform(data[['Inches']])
+    data[['Ram']] = scaler_y.fit_transform(data[['Ram']])
+    data[['Weight']] = scaler_y.fit_transform(data[['Weight']])
+    data[['storage']] = scaler_y.fit_transform(data[['storage']])
+    return data
+
+# Function to convert storage to GB
+def convert_to_gb(storage_str):
+    amounts = re.findall(r'(\d*\.?\d+)([TtGgBb]+)', storage_str)
+    total_gb = 0
+    for amount, unit in amounts:
+        amount = float(amount)
+        if 'TB' in unit.upper():
+            total_gb += amount * 1024
+        elif 'GB' in unit.upper():
+            total_gb += amount
+    return total_gb
+
+# App title
+st.title("Laptop Price Prediction App")
+
+# Input fields
+company = st.selectbox('Company',
+                       ['Apple', 'HP', 'Acer', 'Asus', 'Dell', 'Lenovo', 'Chuwi', 'MSI', 'Microsoft', 'Toshiba',
+                        'Huawei', 'Xiaomi', 'Vero', 'Razer', 'Mediacom', 'Samsung', 'Google', 'Fujitsu', 'LG'])
+typename = st.selectbox('Type', ['Ultrabook', 'Notebook', 'Netbook', 'Gaming', 'Convertible', 'Workstation'])
+os = st.selectbox('Operating System', ['macOS', 'No OS', 'Windows', 'Linux', 'Android', 'Chrome OS'])
+inches = st.number_input('Inches', min_value=0.0, max_value=20.0, value=15.0)
+ram = st.number_input('Ram (GB)', min_value=2, max_value=64, value=8)
+weight = st.number_input('Weight (kg)', min_value=0.5, max_value=5.0, value=1.5)
+screen_resolution = st.text_input('Screen Resolution (e.g., 1920x1080)', '1920x1080')
+cpu = st.text_input('CPU', 'Intel Core i5')
+gpu = st.text_input('GPU', 'Intel HD Graphics 620')
+memory = st.text_input('Memory', '256GB SSD')
+
+# Button to predict
+if st.button('Predict Price'):
+    # Process the input data
+    data = {
+        'Company': [company],
+        'TypeName': [typename],
+        'OpSys': [os],
+        'Inches': [inches],
+        'Ram': [ram],
+        'Weight': [weight],
+        'ScreenResolution': [screen_resolution],
+        'Cpu': [cpu],
+        'Gpu': [gpu],
+        'Memory': [memory]
     }
+    input_data = pd.DataFrame(data)
 
-    if submit_button:
-        return pd.DataFrame(user_data, index=[0])
-    return pd.DataFrame()
+    # Extract features from ScreenResolution
+    input_data['IPS Panel'] = input_data['ScreenResolution'].str.contains('IPS Panel').astype(int)
+    input_data['Touchscreen'] = input_data['ScreenResolution'].str.contains('Touchscreen').astype(int)
+    input_data['x resolution'] = input_data['ScreenResolution'].str.extract(r'(\d+)x').astype(int)
+    input_data['y resolution'] = input_data['ScreenResolution'].str.extract(r'x(\d+)').astype(int)
+    input_data.drop(columns=['ScreenResolution'], inplace=True)
 
-# Get user input
-input_df = user_input_features()
+    # Extract features from CPU and GPU
+    input_data['intel i3'] = input_data['Cpu'].str.contains('Intel Core i3').astype(int)
+    input_data['intel i5'] = input_data['Cpu'].str.contains('Intel Core i5').astype(int)
+    input_data['intel i7'] = input_data['Cpu'].str.contains('Intel Core i7').astype(int)
+    input_data['AMD'] = input_data['Cpu'].str.contains('AMD').astype(int)
+    input_data['other cpu'] = (~input_data['Cpu'].str.contains('Intel Core i3|Intel Core i5|Intel Core i7|AMD')).astype(int)
+    input_data['intel gpu'] = input_data['Gpu'].str.contains('Intel').astype(int)
+    input_data['AMD gpu'] = input_data['Gpu'].str.contains('AMD').astype(int)
+    input_data['Nvidia'] = input_data['Gpu'].str.contains('Nvidia').astype(int)
+    input_data.drop(['Cpu', 'Gpu'], axis=1, inplace=True)
 
-st.write('#### User Input Features')
-st.write(input_df)
+    # Extract features from Memory
+    input_data['SSD'] = input_data['Memory'].str.contains('SSD').astype(int)
+    input_data['HDD'] = input_data['Memory'].str.contains('HDD').astype(int)
+    input_data['Flash Storage'] = input_data['Memory'].str.contains('Flash Storage').astype(int)
+    input_data['Hybrid'] = input_data['Memory'].str.contains('Hybrid').astype(int)
+    input_data['storage'] = input_data['Memory'].apply(lambda x: convert_to_gb(x))
+    input_data.drop(columns=['Memory'], inplace=True)
 
-# Ensure the input DataFrame has the same columns in the same order as feature_names
-if not input_df.empty:
-    input_df = input_df.reindex(columns=feature_names, fill_value=0)
+    # One-hot encode categorical variables
+    input_data = pd.get_dummies(input_data, columns=['Company', 'TypeName', 'OpSys'], drop_first=True)
 
-# Preprocess input data
-if not input_df.empty:
-    input_df[['x resolution', 'y resolution']] = scaler.fit_transform(input_df[['x resolution', 'y resolution']])
-    input_df[['Ram', 'Weight', 'storage', 'Inches']] = mmscaler.fit_transform(input_df[['Ram', 'Weight', 'storage', 'Inches']])
+    # Ensure all features are present
+    for feature in feature_names:
+        if feature not in input_data.columns:
+            input_data[feature] = 0
 
-# Display prediction
-if not input_df.empty:
-    prediction = model.predict(input_df)
-    st.subheader('Predicted Price')
-    st.write(f"Predicted Laptop Price :  ${round(prediction[0])}")
+    # Reorder columns to match training data
+    input_data = input_data[feature_names]
+
+    # Scale the input data
+    input_data = scale_input_data(input_data)
+
+    # Predict the price
+    prediction = model.predict(input_data)
+
+    # Display the prediction
+    st.write(f"The predicted price of the laptop is: ${prediction[0]:.2f}")
