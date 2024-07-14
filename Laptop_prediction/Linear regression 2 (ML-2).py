@@ -567,18 +567,20 @@ mean_absolute_error(y_test,y_pred)
 # In[54]:
 
 
-with open('laptop.pkl', 'wb') as file:
-    pickle.dump(lin_reg, file)
-with open('scaler.pkl', 'wb') as file:
-    pickle.dump(scaler, file)
-with open('mmscaler.pkl', 'wb') as file:
-    pickle.dump(mmscaler, file)
-with open('feature_names.pkl', 'wb') as file:
-    pickle.dump(X.columns.tolist(), file)
+# with open('laptop.pkl', 'wb') as file:
+#     pickle.dump(lin_reg, file)
+# with open('scaler.pkl', 'wb') as file:
+#     pickle.dump(scaler, file)
+# with open('mmscaler.pkl', 'wb') as file:
+#     pickle.dump(mmscaler, file)
+# with open('feature_names.pkl', 'wb') as file:
+#     pickle.dump(X.columns.tolist(), file)
 
-
+# pickle.load(open('laptop_price_model.pkl', 'wb'))
 # In[ ]:
-
-
+with open('laptop_price_model.pkl', 'wb') as file:
+    pickle.dump(lin_reg, file)
+with open('feature_names.pkl', 'wb') as file:
+    pickle.dump(X.columns.tolist(),file)
 
 
